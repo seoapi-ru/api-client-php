@@ -1,2 +1,2 @@
-# api-client-php
-Public API PHP client
+# API client for PHP
+TODO: readme
