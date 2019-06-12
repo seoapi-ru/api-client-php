@@ -39,15 +39,21 @@ class ApiClientTest extends TestCase
     /**
      * @test
      */
-    public function authenticatesRequestsWithCredentials()
+    public function createdFromCredentials()
     {
         $this->expectValidHttpAuthentication();
         $this->authenticateClient();
     }
 
+    public function createdFromToken()
+    {
+        $this->expectNoHttpAuthentication();
+        $client = ApiClient::fromToken(self::VALID_TOKEN, self::BASE_URL, $this->httpClientMock);
+    }
+
     private function authenticateClient(): ApiClient
     {
-        $apiClient = new ApiClient($this->httpClientMock, self::BASE_URL, self::USERNAME, self::PASSWORD);
+        $apiClient = ApiClient::fromCredentials(self::USERNAME, self::PASSWORD, self::BASE_URL, $this->httpClientMock);
         $this->resetRequestExpectationsCounter();
 
         return $apiClient;
@@ -89,7 +95,7 @@ class ApiClientTest extends TestCase
         $this->expectFailedHttpAuthentication(self::BASE_URL, $badUsername, $badPassword, $code);
         $this->expectException(BadResponseException::class);
 
-        new ApiClient($this->httpClientMock, self::BASE_URL, $badUsername, $badPassword);
+        ApiClient::fromCredentials($badUsername, $badPassword, self::BASE_URL, $this->httpClientMock);
     }
 
     private function expectFailedHttpAuthentication(
@@ -177,5 +183,13 @@ class ApiClientTest extends TestCase
     private function resetRequestExpectationsCounter(): void
     {
         $this->requestCounter = 0;
+    }
+
+    private function expectNoHttpAuthentication()
+    {
+        $this->httpClientMock
+            ->expects(self::never())
+            ->method('request')
+        ;
     }
 }

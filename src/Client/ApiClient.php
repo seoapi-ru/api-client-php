@@ -19,12 +19,10 @@ final class ApiClient
     /** @var string|null */
     private $token;
 
-    public function __construct(HttpClientInterface $httpClient, string $baseUrl, string $username, string $password)
+    public function __construct(HttpClientInterface $httpClient, string $baseUrl)
     {
         $this->httpClient = $httpClient;
         $this->baseUrl = $baseUrl;
-
-        $this->authenticate($username, $password);
     }
 
     private function authenticate(string $username, string $password): void
@@ -46,6 +44,26 @@ final class ApiClient
         } catch (\Throwable $e) {
             throw new AuthException('Unexpected error: '.$e->getMessage());
         }
+    }
+
+    public static function fromToken(string $token, string $baseUrl, HttpClientInterface $httpClient): self
+    {
+        $client = new static($httpClient, $baseUrl);
+        $client->token = $token;
+
+        return $client;
+    }
+
+    public static function fromCredentials(
+        string $username,
+        string $password,
+        string $baseUrl,
+        HttpClientInterface $httpClient
+    ): self {
+        $client = new static($httpClient, $baseUrl);
+        $client->authenticate($username, $password);
+
+        return $client;
     }
 
     public function getRegions(string $filter = null): array
