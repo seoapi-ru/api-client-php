@@ -28,7 +28,7 @@ final class ApiClient
     private function authenticate(string $username, string $password): void
     {
         try {
-            $response = $this->sendPostApiRequest('/user/obtain_token', [
+            $response = $this->sendPostApiRequest('/user/obtain_token/', [
                 'username' => $username,
                 'password' => $password,
             ]);
@@ -66,14 +66,32 @@ final class ApiClient
         return $client;
     }
 
-    public function getRegions(string $filter = null): array
+    public function getRegions(string $filter): array
     {
-        $path = '/google/regions';
-        $query = [
+        $response = $this->sendGetApiRequest('/google/regions/', [
             'q' => $filter,
-        ];
+        ]);
 
-        return $this->unserializeResponse($this->sendGetApiRequest($path, $query));
+        return $this->unserializeResponse($response);
+    }
+
+    public function getAggregateStatsReport(string $platform, string $period): array
+    {
+        $response = $this->sendGetApiRequest("/{$platform}/user/report/", [
+            'report_type' => $period,
+        ]);
+
+        return $this->unserializeResponse($response);
+    }
+
+    public function getDailyStatsReport(string $platform, int $year, int $month): array
+    {
+        $response = $this->sendGetApiRequest("/{$platform}/user/report/daily/", [
+            'year' => $year,
+            'month' => $month,
+        ]);
+
+        return $this->unserializeResponse($response);
     }
 
     private function sendPostApiRequest(string $path, array $postBody): ResponseInterface

@@ -24,6 +24,8 @@ class ApiClientTest extends TestCase
     ];
     private const VALID_TOKEN = 'c768e683bf91b13478d5137713cc638f113600';
     private const SAMPLE_JSON_DATA = ['region1', 'region2', ['nestedData' => [1, 2, 3]]];
+    const SEARCH_PLATFORMS = ['google', 'yandex', 'wordstat'];
+    const STATS_PERIODS = ['all', 'month', 'today'];
 
     /** @var MockObject|HttpClientInterface */
     private $httpClientMock;
@@ -59,10 +61,10 @@ class ApiClientTest extends TestCase
         return $apiClient;
     }
 
-    private function expectValidHttpAuthentication(): void
+    private function expectValidHttpAuthentication(): self
     {
-        $this->expectSingleRequest()
-            ->with('POST', self::BASE_URL.'/user/obtain_token', new ArraySubset([
+        $this->thenExpectSingleRequest()
+            ->with('POST', self::BASE_URL.'/user/obtain_token/', new ArraySubset([
                 'body' => [
                     'username' => self::USERNAME,
                     'password' => self::PASSWORD,
@@ -70,6 +72,8 @@ class ApiClientTest extends TestCase
             ]))
             ->willReturn(new HttpResponseMock(200, self::AUTH_USER_RESPONSE))
         ;
+
+        return $this;
     }
 
     public function provideExpectedFailCodes()
@@ -104,8 +108,9 @@ class ApiClientTest extends TestCase
         string $badPassword,
         int $code
     ): void {
-        $this->expectSingleRequest()
-            ->with('POST', $baseUrl.'/user/obtain_token', new ArraySubset([
+        $this->httpClientMock->expects(self::once())
+            ->method('request')
+            ->with('POST', $baseUrl.'/user/obtain_token/', new ArraySubset([
                 'body' => [
                     'username' => $badUsername,
                     'password' => $badPassword,
@@ -118,7 +123,6 @@ class ApiClientTest extends TestCase
     public function providePublicMethods()
     {
         return [
-            ['getRegions', self::SAMPLE_JSON_DATA],
             ['getRegions', self::SAMPLE_JSON_DATA, 'москва'],
         ];
     }
@@ -132,8 +136,8 @@ class ApiClientTest extends TestCase
      */
     public function signsEachRequest(string $method, $expectReturn, ...$args)
     {
-        $this->expectValidHttpAuthentication();
-        $this->expectSingleRequest()
+        $this->expectValidHttpAuthentication()
+            ->thenExpectSingleRequest()
             ->with(
                 self::anything(),
                 self::anything(),
@@ -147,18 +151,6 @@ class ApiClientTest extends TestCase
         $this->authenticateClient()->$method(...$args);
     }
 
-    private function expectSingleRequest(): InvocationMocker
-    {
-        $expectation = $this->httpClientMock
-            ->expects(self::at($this->requestCounter))
-            ->method('request')
-        ;
-
-        $this->requestCounter = $this->requestCounter + 1;
-
-        return $expectation;
-    }
-
     /**
      * @test
      */
@@ -166,12 +158,8 @@ class ApiClientTest extends TestCase
     {
         $queryFilter = 'москва';
 
-        $this->expectValidHttpAuthentication();
-        $this->expectSingleRequest()
-            ->with('GET', self::BASE_URL.'/google/regions', new ArraySubset([
-                'query' => ['q' => $queryFilter],
-            ]))
-            ->willReturn(new HttpResponseMock(200, self::SAMPLE_JSON_DATA))
+        $this->expectValidHttpAuthentication()
+            ->thenExpectGetRequest('/google/regions/', ['q' => $queryFilter], self::SAMPLE_JSON_DATA)
         ;
 
         $client = $this->authenticateClient();
@@ -179,6 +167,84 @@ class ApiClientTest extends TestCase
 
         self::assertEquals(self::SAMPLE_JSON_DATA, $regions);
     }
+
+    public function provideStatsRequests()
+    {
+        foreach (self::SEARCH_PLATFORMS as $platform) {
+            foreach (self::STATS_PERIODS as $period) {
+                yield [
+                    $period,
+                    $platform,
+                    "/{$platform}/user/report/",
+                    [
+                        'report_type' => $period,
+                    ],
+                ];
+            }
+        }
+    }
+
+    /**
+     * @test
+     * @dataProvider provideStatsRequests
+     *
+     * @param string $period
+     * @param string $platform
+     * @param string $expectPath
+     * @param array $expectQuery
+     */
+    public function getAggregateStatsReport(string $period, string $platform, string $expectPath, array $expectQuery)
+    {
+        $this->expectValidHttpAuthentication()
+            ->thenExpectGetRequest($expectPath, $expectQuery, self::SAMPLE_JSON_DATA)
+        ;
+
+        $client = $this->authenticateClient();
+        $data = $client->getAggregateStatsReport($platform, $period);
+
+        self::assertSame(self::SAMPLE_JSON_DATA, $data);
+    }
+
+    public function provideDailyStatsRequests()
+    {
+        $year = 2019;
+        $month = 12;
+        foreach (self::SEARCH_PLATFORMS as $platform) {
+            yield [
+                $platform,
+                $year,
+                $month,
+                "/{$platform}/user/report/daily/",
+                [
+                    'year' => $year,
+                    'month' => $month,
+                ],
+            ];
+        }
+    }
+
+    /**
+     * @test
+     * @dataProvider provideDailyStatsRequests
+     *
+     * @param string $platform
+     * @param int $year
+     * @param int $month
+     * @param string $expectPath
+     * @param array $expectQuery
+     */
+    public function getDailyStatsReport(string $platform, int $year, int $month, string $expectPath, array $expectQuery)
+    {
+        $this->expectValidHttpAuthentication()
+            ->thenExpectGetRequest($expectPath, $expectQuery, self::SAMPLE_JSON_DATA)
+        ;
+
+        $client = $this->authenticateClient();
+        $data = $client->getDailyStatsReport($platform, $year, $month);
+
+        self::assertSame(self::SAMPLE_JSON_DATA, $data);
+    }
+
 
     private function resetRequestExpectationsCounter(): void
     {
@@ -191,5 +257,27 @@ class ApiClientTest extends TestCase
             ->expects(self::never())
             ->method('request')
         ;
+    }
+
+    private function thenExpectGetRequest(string $expectPath, array $expectQuerySubset, array $returnData): self
+    {
+        $this->thenExpectSingleRequest()
+            ->with('GET', self::BASE_URL.$expectPath, new ArraySubset(['query' => $expectQuerySubset]))
+            ->willReturn(new HttpResponseMock(200, $returnData))
+        ;
+
+        return $this;
+    }
+
+    private function thenExpectSingleRequest(): InvocationMocker
+    {
+        $expectation = $this->httpClientMock
+            ->expects(self::at($this->requestCounter))
+            ->method('request')
+        ;
+
+        $this->requestCounter = $this->requestCounter + 1;
+
+        return $expectation;
     }
 }
