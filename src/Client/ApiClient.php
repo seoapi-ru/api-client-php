@@ -12,6 +12,8 @@ use function is_array;
 
 final class ApiClient
 {
+    public const STATS_PERIODS = ['all', 'month', 'today'];
+    public const SEARCH_PLATFORMS = ['google', 'yandex', 'wordstat'];
     /** @var HttpClientInterface */
     private $httpClient;
     /** @var string */

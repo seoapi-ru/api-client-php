@@ -24,8 +24,6 @@ class ApiClientTest extends TestCase
     ];
     private const VALID_TOKEN = 'c768e683bf91b13478d5137713cc638f113600';
     private const SAMPLE_JSON_DATA = ['region1', 'region2', ['nestedData' => [1, 2, 3]]];
-    const SEARCH_PLATFORMS = ['google', 'yandex', 'wordstat'];
-    const STATS_PERIODS = ['all', 'month', 'today'];
 
     /** @var MockObject|HttpClientInterface */
     private $httpClientMock;
@@ -124,6 +122,8 @@ class ApiClientTest extends TestCase
     {
         return [
             ['getRegions', self::SAMPLE_JSON_DATA, 'москва'],
+            ['getAggregateStatsReport', self::SAMPLE_JSON_DATA, 'google', 'today'],
+            ['getDailyStatsReport', self::SAMPLE_JSON_DATA, 'google', 2019, 6],
         ];
     }
 
@@ -170,8 +170,8 @@ class ApiClientTest extends TestCase
 
     public function provideStatsRequests()
     {
-        foreach (self::SEARCH_PLATFORMS as $platform) {
-            foreach (self::STATS_PERIODS as $period) {
+        foreach (ApiClient::SEARCH_PLATFORMS as $platform) {
+            foreach (ApiClient::STATS_PERIODS as $period) {
                 yield [
                     $period,
                     $platform,
@@ -209,7 +209,7 @@ class ApiClientTest extends TestCase
     {
         $year = 2019;
         $month = 12;
-        foreach (self::SEARCH_PLATFORMS as $platform) {
+        foreach (ApiClient::SEARCH_PLATFORMS as $platform) {
             yield [
                 $platform,
                 $year,
