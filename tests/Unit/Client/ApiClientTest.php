@@ -5,13 +5,14 @@ namespace Tests\Unit\Client;
 use PHPUnit\Framework\Constraint\ArraySubset;
 use PHPUnit\Framework\MockObject\Builder\InvocationMocker;
 use PHPUnit\Framework\MockObject\MockObject;
-use PHPUnit\Framework\TestCase;
 use SeoApi\Client\ApiClient;
 use SeoApi\Client\Exception\BadResponseException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Tests\Lib\HttpResponseMock;
+use Tests\Unit\UnitTestCase;
+use function array_merge;
 
-class ApiClientTest extends TestCase
+class ApiClientTest extends UnitTestCase
 {
     private const BASE_URL = 'https://testhost';
     private const USERNAME = 'test_username';
@@ -42,13 +43,17 @@ class ApiClientTest extends TestCase
     public function createdFromCredentials()
     {
         $this->expectValidHttpAuthentication();
-        $this->authenticateClient();
+        $client = $this->authenticateClient();
+
+        self::assertInstanceOf(ApiClient::class, $client);
     }
 
     public function createdFromToken()
     {
         $this->expectNoHttpAuthentication();
         $client = ApiClient::fromToken(self::VALID_TOKEN, self::BASE_URL, $this->httpClientMock);
+
+        self::assertInstanceOf(ApiClient::class, $client);
     }
 
     private function authenticateClient(): ApiClient
@@ -57,6 +62,11 @@ class ApiClientTest extends TestCase
         $this->resetRequestExpectationsCounter();
 
         return $apiClient;
+    }
+
+    private function resetRequestExpectationsCounter(): void
+    {
+        $this->requestCounter = 0;
     }
 
     private function expectValidHttpAuthentication(): self
@@ -175,7 +185,6 @@ class ApiClientTest extends TestCase
                 yield [
                     $period,
                     $platform,
-                    "/{$platform}/user/report/",
                     [
                         'report_type' => $period,
                     ],
@@ -193,10 +202,10 @@ class ApiClientTest extends TestCase
      * @param string $expectPath
      * @param array $expectQuery
      */
-    public function getAggregateStatsReport(string $period, string $platform, string $expectPath, array $expectQuery)
+    public function getAggregateStatsReport(string $period, string $platform, array $expectQuery)
     {
         $this->expectValidHttpAuthentication()
-            ->thenExpectGetRequest($expectPath, $expectQuery, self::SAMPLE_JSON_DATA)
+             ->thenExpectGetRequest("/{$platform}/user/report/", $expectQuery, self::SAMPLE_JSON_DATA)
         ;
 
         $client = $this->authenticateClient();
@@ -214,7 +223,6 @@ class ApiClientTest extends TestCase
                 $platform,
                 $year,
                 $month,
-                "/{$platform}/user/report/daily/",
                 [
                     'year' => $year,
                     'month' => $month,
@@ -233,10 +241,10 @@ class ApiClientTest extends TestCase
      * @param string $expectPath
      * @param array $expectQuery
      */
-    public function getDailyStatsReport(string $platform, int $year, int $month, string $expectPath, array $expectQuery)
+    public function getDailyStatsReport(string $platform, int $year, int $month, array $expectQuery)
     {
         $this->expectValidHttpAuthentication()
-            ->thenExpectGetRequest($expectPath, $expectQuery, self::SAMPLE_JSON_DATA)
+             ->thenExpectGetRequest("/{$platform}/user/report/daily/", $expectQuery, self::SAMPLE_JSON_DATA)
         ;
 
         $client = $this->authenticateClient();
@@ -246,9 +254,53 @@ class ApiClientTest extends TestCase
     }
 
 
-    private function resetRequestExpectationsCounter(): void
+    public function provideLoadTasksParams()
     {
-        $this->requestCounter = 0;
+        return;
+    }
+
+    /**
+     * @test
+     */
+    public function loadTasksWithJson()
+    {
+        $sessionId = '07d38bbc-1a97-4f82-acf7-fd0c5766e095';
+        $pageSize = 100;
+        $pagesTotal = 10;
+        $queries = [
+            [
+                'query' => 'foo',
+                'query_id' => 'query1',
+                'numdoc' => 50,
+                'total_pages' => 3,
+                'region' => 77,
+            ],
+        ];
+
+        $extraParams = [
+            'domain' => 'google.ru',
+            'is_mobile' => 1,
+            'region' => 66,
+            'params' => ['x' => 1, 'y' => 2],
+        ];
+
+        $payload = array_merge([
+            'source' => 'google',
+            'session_id' => $sessionId,
+            'numdoc' => $pageSize,
+            'total_pages' => $pagesTotal,
+            'queries' => $queries,
+        ], $extraParams);
+
+        $this->expectValidHttpAuthentication()
+             ->thenExpectPostRequest("/google/load_tasks/", $payload, self::SAMPLE_JSON_DATA)
+        ;
+
+        $sessionData = $this->authenticateClient()
+                            ->loadTasks('google', $sessionId, $pageSize, $pagesTotal, $queries, $extraParams)
+        ;
+
+        self::assertSame(self::SAMPLE_JSON_DATA, $sessionData);
     }
 
     private function expectNoHttpAuthentication()
@@ -264,6 +316,16 @@ class ApiClientTest extends TestCase
         $this->thenExpectSingleRequest()
             ->with('GET', self::BASE_URL.$expectPath, new ArraySubset(['query' => $expectQuerySubset]))
             ->willReturn(new HttpResponseMock(200, $returnData))
+        ;
+
+        return $this;
+    }
+
+    private function thenExpectPostRequest(string $expectPath, array $expectPayload, array $returnData)
+    {
+        $this->thenExpectSingleRequest()
+             ->with('POST', self::BASE_URL.$expectPath, new ArraySubset(['json' => $expectPayload]))
+             ->willReturn(new HttpResponseMock(200, $returnData))
         ;
 
         return $this;

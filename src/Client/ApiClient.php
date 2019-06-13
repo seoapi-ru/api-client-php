@@ -8,6 +8,7 @@ use SeoApi\Client\Exception\TransportException;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use function array_merge;
 use function is_array;
 
 final class ApiClient
@@ -96,11 +97,48 @@ final class ApiClient
         return $this->unserializeResponse($response);
     }
 
+    public function loadTasks(
+        string $platform,
+        string $sessionId,
+        int $pageSize,
+        int $pagesTotal,
+        array $queries,
+        array $extraParams
+    ): array {
+        $params = [
+            'source' => $platform,
+            'session_id' => $sessionId,
+            'numdoc' => $pageSize,
+            'total_pages' => $pagesTotal,
+            'queries' => $queries,
+        ];
+
+        $response = $this->sendJsonPostApiRequest("/${platform}/load_tasks/", array_merge($params, $extraParams));
+
+        return $this->unserializeResponse($response);
+    }
+
     private function sendPostApiRequest(string $path, array $postBody): ResponseInterface
     {
         try {
             $response = $this->httpClient->request('POST', $this->baseUrl.$path, [
                 'body' => $postBody,
+                'headers' => $this->buildHeaders(),
+            ]);
+
+            $this->checkResponseCode($response);
+
+            return $response;
+        } catch (TransportExceptionInterface $e) {
+            throw new TransportException('POST exception: '.$e->getMessage(), 0, $e);
+        }
+    }
+
+    private function sendJsonPostApiRequest(string $path, array $payload): ResponseInterface
+    {
+        try {
+            $response = $this->httpClient->request('POST', $this->baseUrl.$path, [
+                'json' => $payload,
                 'headers' => $this->buildHeaders(),
             ]);
 
