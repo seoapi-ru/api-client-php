@@ -24,7 +24,8 @@ class ApiClientTest extends UnitTestCase
         ],
     ];
     private const VALID_TOKEN = 'c768e683bf91b13478d5137713cc638f113600';
-    private const SAMPLE_JSON_DATA = ['region1', 'region2', ['nestedData' => [1, 2, 3]]];
+    private const SAMPLE_JSON_RESPONSE = ['region1', 'region2', ['nestedData' => [1, 2, 3]]];
+    const VALID_SESSION_ID = '07d38bbc-1a97-4f82-acf7-fd0c5766e095';
 
     /** @var MockObject|HttpClientInterface */
     private $httpClientMock;
@@ -71,14 +72,14 @@ class ApiClientTest extends UnitTestCase
 
     private function expectValidHttpAuthentication(): self
     {
-        $this->thenExpectSingleRequest()
-            ->with('POST', self::BASE_URL.'/user/obtain_token/', new ArraySubset([
+        $this->expectSingleRequest()
+             ->with('POST', self::BASE_URL.'/user/obtain_token/', new ArraySubset([
                 'body' => [
                     'username' => self::USERNAME,
                     'password' => self::PASSWORD,
                 ],
             ]))
-            ->willReturn(new HttpResponseMock(200, self::AUTH_USER_RESPONSE))
+             ->willReturn(new HttpResponseMock(200, self::AUTH_USER_RESPONSE))
         ;
 
         return $this;
@@ -131,9 +132,9 @@ class ApiClientTest extends UnitTestCase
     public function providePublicMethods()
     {
         return [
-            ['getRegions', self::SAMPLE_JSON_DATA, 'москва'],
-            ['getAggregateStatsReport', self::SAMPLE_JSON_DATA, 'google', 'today'],
-            ['getDailyStatsReport', self::SAMPLE_JSON_DATA, 'google', 2019, 6],
+            ['getRegions', self::SAMPLE_JSON_RESPONSE, 'москва'],
+            ['getAggregateStatsReport', self::SAMPLE_JSON_RESPONSE, 'google', 'today'],
+            ['getDailyStatsReport', self::SAMPLE_JSON_RESPONSE, 'google', 2019, 6],
         ];
     }
 
@@ -169,13 +170,13 @@ class ApiClientTest extends UnitTestCase
         $queryFilter = 'москва';
 
         $this->expectValidHttpAuthentication()
-            ->thenExpectGetRequest('/google/regions/', ['q' => $queryFilter], self::SAMPLE_JSON_DATA)
+             ->thenExpectGetRequest('/google/regions/', ['q' => $queryFilter], self::SAMPLE_JSON_RESPONSE)
         ;
 
         $client = $this->authenticateClient();
         $regions = $client->getRegions($queryFilter);
 
-        self::assertEquals(self::SAMPLE_JSON_DATA, $regions);
+        self::assertEquals(self::SAMPLE_JSON_RESPONSE, $regions);
     }
 
     public function provideStatsRequests()
@@ -205,13 +206,13 @@ class ApiClientTest extends UnitTestCase
     public function getAggregateStatsReport(string $period, string $platform, array $expectQuery)
     {
         $this->expectValidHttpAuthentication()
-             ->thenExpectGetRequest("/{$platform}/user/report/", $expectQuery, self::SAMPLE_JSON_DATA)
+             ->thenExpectGetRequest("/{$platform}/user/report/", $expectQuery, self::SAMPLE_JSON_RESPONSE)
         ;
 
         $client = $this->authenticateClient();
         $data = $client->getAggregateStatsReport($platform, $period);
 
-        self::assertSame(self::SAMPLE_JSON_DATA, $data);
+        self::assertSame(self::SAMPLE_JSON_RESPONSE, $data);
     }
 
     public function provideDailyStatsRequests()
@@ -244,13 +245,13 @@ class ApiClientTest extends UnitTestCase
     public function getDailyStatsReport(string $platform, int $year, int $month, array $expectQuery)
     {
         $this->expectValidHttpAuthentication()
-             ->thenExpectGetRequest("/{$platform}/user/report/daily/", $expectQuery, self::SAMPLE_JSON_DATA)
+             ->thenExpectGetRequest("/{$platform}/user/report/daily/", $expectQuery, self::SAMPLE_JSON_RESPONSE)
         ;
 
         $client = $this->authenticateClient();
         $data = $client->getDailyStatsReport($platform, $year, $month);
 
-        self::assertSame(self::SAMPLE_JSON_DATA, $data);
+        self::assertSame(self::SAMPLE_JSON_RESPONSE, $data);
     }
 
 
@@ -264,7 +265,6 @@ class ApiClientTest extends UnitTestCase
      */
     public function loadTasksWithJson()
     {
-        $sessionId = '07d38bbc-1a97-4f82-acf7-fd0c5766e095';
         $pageSize = 100;
         $pagesTotal = 10;
         $queries = [
@@ -286,21 +286,68 @@ class ApiClientTest extends UnitTestCase
 
         $payload = array_merge([
             'source' => 'google',
-            'session_id' => $sessionId,
+            'session_id' => self::VALID_SESSION_ID,
             'numdoc' => $pageSize,
             'total_pages' => $pagesTotal,
             'queries' => $queries,
         ], $extraParams);
 
         $this->expectValidHttpAuthentication()
-             ->thenExpectPostRequest("/google/load_tasks/", $payload, self::SAMPLE_JSON_DATA)
+             ->thenExpectPostRequest("/google/load_tasks/", $payload, self::SAMPLE_JSON_RESPONSE)
         ;
 
         $sessionData = $this->authenticateClient()
-                            ->loadTasks('google', $sessionId, $pageSize, $pagesTotal, $queries, $extraParams)
+                            ->loadTasks('google', self::VALID_SESSION_ID, $pageSize, $pagesTotal, $queries,
+                                $extraParams)
         ;
 
-        self::assertSame(self::SAMPLE_JSON_DATA, $sessionData);
+        self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
+    }
+
+    /**
+     * @test
+     */
+    public function getTasksSessionStatus()
+    {
+        $this->expectValidHttpAuthentication()
+             ->thenExpectGetRequest(
+                 "/google/session/".self::VALID_SESSION_ID."/",
+                 [],
+                 self::SAMPLE_JSON_RESPONSE
+             )
+        ;
+
+        $sessionData = $this->authenticateClient()
+                            ->getTasksSessionStatus('google', self::VALID_SESSION_ID)
+        ;
+
+        self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
+    }
+
+    /**
+     * @test
+     */
+    public function getTasksSessionResults()
+    {
+        $limit = 1000;
+        $offset = 2000;
+
+        $this->expectValidHttpAuthentication()
+             ->thenExpectGetRequest(
+                 "/google/results/".self::VALID_SESSION_ID."/",
+                 [
+                     'limit' => $limit,
+                     'offset' => $offset,
+                 ],
+                 self::SAMPLE_JSON_RESPONSE
+             )
+        ;
+
+        $sessionData = $this->authenticateClient()
+                            ->getTasksSessionResults('google', self::VALID_SESSION_ID, $limit, $offset)
+        ;
+
+        self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
     }
 
     private function expectNoHttpAuthentication()
@@ -311,24 +358,29 @@ class ApiClientTest extends UnitTestCase
         ;
     }
 
-    private function thenExpectGetRequest(string $expectPath, array $expectQuerySubset, array $returnData): self
+    private function thenExpectGetRequest(string $path, array $querySubset, array $returnData): self
     {
         $this->thenExpectSingleRequest()
-            ->with('GET', self::BASE_URL.$expectPath, new ArraySubset(['query' => $expectQuerySubset]))
-            ->willReturn(new HttpResponseMock(200, $returnData))
+             ->with('GET', self::BASE_URL.$path, new ArraySubset(['query' => $querySubset]))
+             ->willReturn(new HttpResponseMock(200, $returnData))
         ;
 
         return $this;
     }
 
-    private function thenExpectPostRequest(string $expectPath, array $expectPayload, array $returnData)
+    private function thenExpectPostRequest(string $path, array $payload, array $returnData)
     {
         $this->thenExpectSingleRequest()
-             ->with('POST', self::BASE_URL.$expectPath, new ArraySubset(['json' => $expectPayload]))
+             ->with('POST', self::BASE_URL.$path, new ArraySubset(['json' => $payload]))
              ->willReturn(new HttpResponseMock(200, $returnData))
         ;
 
         return $this;
+    }
+
+    private function expectSingleRequest(): InvocationMocker
+    {
+        return $this->thenExpectSingleRequest();
     }
 
     private function thenExpectSingleRequest(): InvocationMocker

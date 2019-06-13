@@ -113,7 +113,24 @@ final class ApiClient
             'queries' => $queries,
         ];
 
-        $response = $this->sendJsonPostApiRequest("/${platform}/load_tasks/", array_merge($params, $extraParams));
+        $response = $this->sendJsonPostApiRequest("/{$platform}/load_tasks/", array_merge($params, $extraParams));
+
+        return $this->unserializeResponse($response);
+    }
+
+    public function getTasksSessionStatus(string $platform, string $sessionId): array
+    {
+        $response = $this->sendGetApiRequest("/{$platform}/session/{$sessionId}/", []);
+
+        return $this->unserializeResponse($response);
+    }
+
+    public function getTasksSessionResults(string $platform, string $sessionId, $limit, $offset = 0): array
+    {
+        $response = $this->sendGetApiRequest("/{$platform}/results/{$sessionId}/", [
+            'limit' => $limit,
+            'offset' => $offset,
+        ]);
 
         return $this->unserializeResponse($response);
     }
