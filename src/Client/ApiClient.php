@@ -103,7 +103,7 @@ final class ApiClient
         int $pageSize,
         int $pagesTotal,
         array $queries,
-        array $extraParams
+        array $extraParams = []
     ): array {
         $params = [
             'source' => $platform,
