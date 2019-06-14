@@ -8,31 +8,31 @@ class RegionsTest extends FunctionalTestCase
 {
     private const JSON_SCHEMA = <<<'JSON'
     {
-        "$schema": "http://json-schema.org/draft-04/schema#",
-        "type": "array",
-        "items": {
-          "type":  "object",
-          "properties": {
-            "region_id": {
-              "type": "number",
-              "minimum": 0
-            },
-            "name_ru": {
-              "type": "boolean"
-            },
-            "name": {
-              "type": "string"
-            }            
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "type": "array",
+      "items": {
+        "type":  "object",
+        "properties": {
+          "region_id": {
+            "type": "number",
+            "minimum": 0
           },
-          "required": ["region_id", "name"]
-        }
+          "name_ru": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }            
+        },
+        "required": ["region_id", "name"]
+      }
     }
 JSON;
 
     /**
      * @test
      */
-    public function returnsValidSchema()
+    public function getRegionsMatchesSchema()
     {
         $regions = $this->client->getRegions('москва');
 
