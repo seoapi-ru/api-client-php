@@ -2,12 +2,14 @@
 
 namespace SeoApi\Client;
 
+use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\BadResponseException as BadGuzzleResponseException;
+use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\RequestOptions;
 use SeoApi\Client\Exception\AuthException;
 use SeoApi\Client\Exception\BadResponseException;
 use SeoApi\Client\Exception\TransportException;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
-use Symfony\Contracts\HttpClient\ResponseInterface;
 use function array_merge;
 use function is_array;
 
@@ -15,16 +17,16 @@ final class ApiClient
 {
     public const STATS_PERIODS = ['all', 'month', 'today'];
     public const SEARCH_PLATFORMS = ['google', 'yandex', 'wordstat'];
-    /** @var HttpClientInterface */
+    /** @var ClientInterface */
     private $httpClient;
     /** @var string */
     private $baseUrl;
     /** @var string|null */
     private $token;
 
-    public function __construct(HttpClientInterface $httpClient, string $baseUrl)
+    public function __construct(HttpClientFactory $httpClientFactory, string $baseUrl)
     {
-        $this->httpClient = $httpClient;
+        $this->httpClient = $httpClientFactory->create($baseUrl);
         $this->baseUrl = $baseUrl;
     }
 
@@ -49,9 +51,9 @@ final class ApiClient
         }
     }
 
-    public static function fromToken(string $token, string $baseUrl, HttpClientInterface $httpClient): self
+    public static function fromToken(string $token, string $baseUrl, HttpClientFactory $httpClientFactory): self
     {
-        $client = new static($httpClient, $baseUrl);
+        $client = new static($httpClientFactory, $baseUrl);
         $client->token = $token;
 
         return $client;
@@ -61,9 +63,9 @@ final class ApiClient
         string $username,
         string $password,
         string $baseUrl,
-        HttpClientInterface $httpClient
+        HttpClientFactory $httpClientFactory
     ): self {
-        $client = new static($httpClient, $baseUrl);
+        $client = new static($httpClientFactory, $baseUrl);
         $client->authenticate($username, $password);
 
         return $client;
@@ -135,50 +137,64 @@ final class ApiClient
         return $this->unserializeResponse($response);
     }
 
-    private function sendPostApiRequest(string $path, array $postBody): ResponseInterface
+    private function sendPostApiRequest(string $path, array $postBody): Response
     {
         try {
-            $response = $this->httpClient->request('POST', $this->baseUrl.$path, [
-                'body' => $postBody,
-                'headers' => $this->buildHeaders(),
+            $response = $this->httpClient->post($path, [
+                RequestOptions::FORM_PARAMS => $postBody,
+                RequestOptions::HEADERS => $this->buildHeaders(),
             ]);
 
-            $this->checkResponseCode($response);
-
             return $response;
-        } catch (TransportExceptionInterface $e) {
-            throw new TransportException('POST exception: '.$e->getMessage(), 0, $e);
+        } catch (BadGuzzleResponseException $e) {
+            throw new BadResponseException(
+                sprintf("Bad HTTP response (%d)", $e->getCode()),
+                $e->getCode(),
+                $e
+            );
+        } catch (GuzzleException $e) {
+            throw new TransportException('POST exception: '.$e->getMessage(), $e->getCode(), $e);
         }
     }
 
-    private function sendJsonPostApiRequest(string $path, array $payload): ResponseInterface
+    private function sendJsonPostApiRequest(string $path, array $payload): Response
     {
         try {
-            $response = $this->httpClient->request('POST', $this->baseUrl.$path, [
-                'json' => $payload,
-                'headers' => $this->buildHeaders(),
+            $response = $this->httpClient->post($path, [
+                RequestOptions::JSON => $payload,
+                RequestOptions::HEADERS => $this->buildHeaders(),
             ]);
 
-            $this->checkResponseCode($response);
 
             return $response;
-        } catch (TransportExceptionInterface $e) {
-            throw new TransportException('POST exception: '.$e->getMessage(), 0, $e);
+        } catch (BadGuzzleResponseException $e) {
+            throw new BadResponseException(
+                sprintf("Bad HTTP response (%d)", $e->getCode()),
+                $e->getCode(),
+                $e
+            );
+        } catch (GuzzleException $e) {
+            throw new TransportException('POST exception: '.$e->getMessage(), $e->getCode(), $e);
         }
     }
 
-    private function sendGetApiRequest(string $path, array $query): ResponseInterface
+    private function sendGetApiRequest(string $path, array $query): Response
     {
         try {
-            $response = $this->httpClient->request('GET', $this->baseUrl.$path, [
-                'query' => $query,
-                'headers' => $this->buildHeaders(),
+            $response = $this->httpClient->get($this->baseUrl.$path, [
+                RequestOptions::QUERY => $query,
+                RequestOptions::HEADERS => $this->buildHeaders(),
             ]);
-            $this->checkResponseCode($response);
 
             return $response;
-        } catch (TransportExceptionInterface $e) {
-            throw new TransportException('GET exception: '.$e->getMessage(), 0, $e);
+        } catch (BadGuzzleResponseException $e) {
+            throw new BadResponseException(
+                sprintf("Bad HTTP response (%d)", $e->getCode()),
+                $e->getCode(),
+                $e
+            );
+        } catch (GuzzleException $e) {
+            throw new TransportException('GET exception: '.$e->getMessage(), $e->getCode(), $e);
         }
     }
 
@@ -192,24 +208,14 @@ final class ApiClient
         return $headers;
     }
 
-    private function unserializeResponse(ResponseInterface $response): array
+    private function unserializeResponse(Response $response): array
     {
-        $content = $response->getContent(false);
+        $content = $response->getBody()->getContents();
         $jsonDecoded = \json_decode($content, true);
         if (!is_array($jsonDecoded)) {
             throw new BadResponseException('Can\'t decode JSON: '.$content);
         }
 
         return $jsonDecoded;
-    }
-
-    private function checkResponseCode(ResponseInterface $response): void
-    {
-        $statusCode = $response->getStatusCode();
-        if (\in_array($statusCode, \range(400, 599), true)) {
-            throw new BadResponseException(
-                sprintf("Bad response (%d): %s", $statusCode, $response->getContent(false))
-            );
-        }
     }
 }

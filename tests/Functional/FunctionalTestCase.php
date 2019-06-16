@@ -6,8 +6,8 @@ use JsonSchema\Constraints\Constraint;
 use JsonSchema\Validator;
 use PHPUnit\Framework\TestCase;
 use SeoApi\Client\ApiClient;
+use SeoApi\Client\HttpClientFactory;
 use Symfony\Component\Dotenv\Dotenv;
-use Symfony\Component\HttpClient\HttpClient;
 
 class FunctionalTestCase extends TestCase
 {
@@ -19,7 +19,11 @@ class FunctionalTestCase extends TestCase
 
     public static function setUpBeforeClass()
     {
-        // add local vars
+        self::loadExtraEnvironment();
+    }
+
+    private static function loadExtraEnvironment(): void
+    {
         $envFilePath = self::ENV_FILE_PATH;
         if (file_exists($envFilePath)) {
             (new Dotenv())->overload($envFilePath);
@@ -31,7 +35,7 @@ class FunctionalTestCase extends TestCase
         $this->client = ApiClient::fromToken(
             getenv('SEOAPI_CLIENT_TOKEN'),
             getenv('SEOAPI_CLIENT_BASEURL'),
-            HttpClient::create(['base_uri' => getenv('SEOAPI_CLIENT_BASEURL')])
+            new HttpClientFactory()
         );
 
         $this->jsonSchemaValidator = new Validator();
