@@ -39,7 +39,9 @@ JSON;
     }
 JSON;
 
-    public function provideAggregateStatRequests()
+    private const SUPPORTED_DAILY_STAT_PLATFORMS = ['google'/*, 'yandex', 'wordstat'*/];
+
+    public function provideAggregateStatRequests(): iterable
     {
         foreach (ApiClient::SEARCH_PLATFORMS as $platform) {
             foreach (ApiClient::STATS_PERIODS as $period) {
@@ -57,22 +59,20 @@ JSON;
      */
     public function getAggregateStatsReportMatchesSchema(string $platform, string $period)
     {
+        self::markTestSkipped('Waits for confirmation of method deprecation');
+
         $regions = $this->client->getAggregateStatsReport($platform, $period);
 
         self::assertNotEmpty($regions);
         $this->assertJsonSchemaIsValid($regions, self::AGGREGATE_JSON_SCHEMA);
     }
 
-    public function provideDailyStatsRequests()
+    public function provideDailyStatsRequests(): iterable
     {
         $year = 2019;
         $month = 1;
-        foreach (ApiClient::SEARCH_PLATFORMS as $platform) {
-            yield [
-                $platform,
-                $year,
-                $month,
-            ];
+        foreach (self::SUPPORTED_DAILY_STAT_PLATFORMS as $platform) {
+            yield [$platform, $year, $month];
         }
     }
 
