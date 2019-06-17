@@ -4,10 +4,11 @@ namespace Tests\Unit\Client;
 
 use PHPUnit\Framework\Constraint\ArraySubset;
 use SeoApi\Client\ApiClient;
+use SeoApi\Client\Session\QueryBuilder;
+use SeoApi\Client\Session\SessionBuilder;
 use Tests\Lib\JsonPayload;
 use Tests\Lib\RequestTesterTrait;
 use Tests\Unit\UnitTestCase;
-use function array_merge;
 
 class ApiClientTest extends UnitTestCase
 {
@@ -20,6 +21,7 @@ class ApiClientTest extends UnitTestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
         $this->setupRequestTester();
     }
 
@@ -30,7 +32,7 @@ class ApiClientTest extends UnitTestCase
     {
         $client = $this->getAuthenticatedClient();
 
-        $queryFilter = 'москва';
+        $queryFilter = $this->faker->word;
 
         $request = self::expectRequest()
                        ->withMethod(self::equalTo('GET'))
@@ -66,16 +68,16 @@ class ApiClientTest extends UnitTestCase
      *
      * @param string $period
      * @param string $platform
-     * @param array $expectQuery
+     * @param array $query
      */
-    public function getAggregateStatsReport(string $period, string $platform, array $expectQuery)
+    public function getAggregateStatsReport(string $period, string $platform, array $query)
     {
         $client = $this->getAuthenticatedClient();
 
         $request = self::expectRequest()
                        ->withMethod(self::equalTo('GET'))
                        ->withPath(self::equalTo("/{$platform}/user/report/"))
-                       ->withQuery(new ArraySubset($expectQuery))
+                       ->withQuery(new ArraySubset($query))
         ;
         $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
 
@@ -109,16 +111,16 @@ class ApiClientTest extends UnitTestCase
      * @param int $year
      * @param int $month
      * @param string $expectPath
-     * @param array $expectQuery
+     * @param array $query
      */
-    public function getDailyStatsReport(string $platform, int $year, int $month, array $expectQuery)
+    public function getDailyStatsReport(string $platform, int $year, int $month, array $query)
     {
         $client = $this->getAuthenticatedClient();
 
         $request = self::expectRequest()
                        ->withMethod(self::equalTo('GET'))
                        ->withPath(self::equalTo("/{$platform}/user/report/daily/"))
-                       ->withQuery(new ArraySubset($expectQuery))
+                       ->withQuery(new ArraySubset($query))
         ;
         $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
 
@@ -134,50 +136,23 @@ class ApiClientTest extends UnitTestCase
     public function loadTasksWithJson()
     {
         $client = $this->getAuthenticatedClient();
-
-        $pageSize = 100;
-        $pagesTotal = 10;
-        $queries = [
-            [
-                'query' => 'foo',
-                'query_id' => 'query1',
-                'numdoc' => 50,
-                'total_pages' => 3,
-                'region' => 77,
-            ],
-        ];
-
-        $extraParams = [
-            'domain' => 'google.ru',
-            'is_mobile' => 1,
-            'region' => 66,
-            'params' => ['x' => 1, 'y' => 2],
-        ];
-
-        $payload = array_merge([
-            'source' => 'google',
-            'session_id' => self::VALID_SESSION_ID,
-            'numdoc' => $pageSize,
-            'total_pages' => $pagesTotal,
-            'queries' => $queries,
-        ], $extraParams);
+        $session = new SessionBuilder(
+            self::VALID_SESSION_ID,
+            'google',
+            $this->faker->numberBetween(10, 50),
+            $this->faker->numberBetween(1, 5)
+        );
+        $session = $session->addQuery(new QueryBuilder('test'));
 
         $request = self::expectRequest()
                        ->withMethod(self::equalTo('POST'))
                        ->withPath(self::equalTo("/google/load_tasks/"))
-                       ->withPayload(new JsonPayload($payload))
+                       ->withPayload(new JsonPayload($session->toArray()))
         ;
 
         $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
 
-        $sessionData = $client->loadTasks(
-            'google',
-            self::VALID_SESSION_ID,
-            $pageSize,
-            $pagesTotal,
-            $queries,
-            $extraParams
-        );
+        $sessionData = $client->loadTasks('google', $session);
 
         self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
     }
@@ -218,7 +193,6 @@ class ApiClientTest extends UnitTestCase
                            'offset' => $offset,
                        ]))
         ;
-
 
         $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
         $sessionData = $client->getTasksSessionResults('google', self::VALID_SESSION_ID, $limit, $offset);

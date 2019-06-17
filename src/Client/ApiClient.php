@@ -10,7 +10,7 @@ use GuzzleHttp\RequestOptions;
 use SeoApi\Client\Exception\AuthException;
 use SeoApi\Client\Exception\BadResponseException;
 use SeoApi\Client\Exception\TransportException;
-use function array_merge;
+use SeoApi\Client\Session\SessionBuilder;
 use function is_array;
 
 final class ApiClient
@@ -80,6 +80,13 @@ final class ApiClient
         return $this->unserializeResponse($response);
     }
 
+    /**
+     * @param string $platform
+     * @param string $period
+     * @return array
+     * @deprecated Used anywhere?
+     *
+     */
     public function getAggregateStatsReport(string $platform, string $period): array
     {
         $response = $this->sendGetApiRequest("/{$platform}/user/report/", [
@@ -99,23 +106,9 @@ final class ApiClient
         return $this->unserializeResponse($response);
     }
 
-    public function loadTasks(
-        string $platform,
-        string $sessionId,
-        int $pageSize,
-        int $pagesTotal,
-        array $queries,
-        array $extraParams = []
-    ): array {
-        $params = [
-            'source' => $platform,
-            'session_id' => $sessionId,
-            'numdoc' => $pageSize,
-            'total_pages' => $pagesTotal,
-            'queries' => $queries,
-        ];
-
-        $response = $this->sendJsonPostApiRequest("/{$platform}/load_tasks/", array_merge($params, $extraParams));
+    public function loadTasks(string $platform, SessionBuilder $session): array
+    {
+        $response = $this->sendJsonPostApiRequest("/{$platform}/load_tasks/", $session->toArray());
 
         return $this->unserializeResponse($response);
     }
