@@ -5,7 +5,6 @@ namespace Tests\Functional\Client;
 use SeoApi\Client\Session\QueryBuilder;
 use SeoApi\Client\Session\SessionBuilder;
 use Tests\Functional\FunctionalTestCase;
-use function usleep;
 
 class SessionsTest extends FunctionalTestCase
 {
@@ -145,41 +144,17 @@ JSON;
         self::assertSame('OK', $sessionStarted['status']);
         self::assertSame([self::TEST_QUERY_ID], $sessionStarted['query_ids']);
 
-
         $results = null;
 
-        $ticker = $this->waitForSessionStatusResponse($sessionId);
+        $ticker = $this->client->waitForSessionFinish($session, self::SESSION_TIMEOUT);
         foreach ($ticker as $statusData) {
             $this->assertJsonSchemaIsValid($statusData, self::SESSION_STATUS_JSON_SCHEMA);
         }
-        $results = $ticker->getReturn();
+        $success = $ticker->getReturn();
 
-        self::assertNotNull($results);
+        self::assertTrue($success);
+
+        $results = $this->client->getTasksSessionResults('google', $session->getId(), 10);
         $this->assertJsonSchemaIsValid($results, self::SESSION_RESULT_JSON_SCHEMA);
-    }
-
-    private function waitForSessionStatusResponse(string $sessionId): \Generator
-    {
-        $secondsPassed = 0;
-        $timeout = 0.5;
-        $tasksFinished = false;
-
-        while ($secondsPassed < self::SESSION_TIMEOUT) {
-            $secondsPassed += $timeout;
-            usleep($timeout * 1000 * 1000);
-            $statusData = $this->client->getTasksSessionStatus('google', $sessionId);
-            yield $statusData;
-
-            if ($statusData['status'] === 'finished') {
-                $tasksFinished = true;
-                break;
-            }
-        }
-
-        if (!$tasksFinished) {
-            return null;
-        }
-
-        return $this->client->getTasksSessionResults('google', $sessionId, 10);
     }
 }

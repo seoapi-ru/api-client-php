@@ -7,8 +7,10 @@ use GuzzleHttp\Exception\BadResponseException as BadGuzzleResponseException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\RequestOptions;
+use LogicException;
 use SeoApi\Client\Exception\AuthException;
 use SeoApi\Client\Exception\BadResponseException;
+use SeoApi\Client\Exception\TimeoutExceededError;
 use SeoApi\Client\Exception\TransportException;
 use SeoApi\Client\Session\SessionBuilder;
 use function is_array;
@@ -211,5 +213,32 @@ final class ApiClient
         }
 
         return $jsonDecoded;
+    }
+
+    public function waitForSessionFinish(SessionBuilder $session, int $sessionTimeout): \Generator
+    {
+        $secondsPassed = 0;
+        $stepTimeout = 0.5;
+        $tasksFinished = false;
+        if ($sessionTimeout < $stepTimeout) {
+            throw new LogicException("Set session timeout more thah $stepTimeout seconds");
+        }
+
+        while ($secondsPassed < $sessionTimeout) {
+            $secondsPassed += $stepTimeout;
+            usleep($stepTimeout * 1000 * 1000);
+            $statusData = $this->getTasksSessionStatus('google', $session->getId());
+            if ($statusData['status'] === 'finished') {
+                $tasksFinished = true;
+                break;
+            }
+            yield $statusData;
+        }
+
+        if (!$tasksFinished) {
+            throw new TimeoutExceededError("Timeout of $sessionTimeout seconds is expired");
+        }
+
+        return true;
     }
 }

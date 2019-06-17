@@ -4,11 +4,9 @@ namespace Tests\Unit\Client;
 
 use PHPUnit\Framework\Constraint\ArraySubset;
 use SeoApi\Client\ApiClient;
-use SeoApi\Client\Session\QueryBuilder;
-use SeoApi\Client\Session\SessionBuilder;
-use Tests\Lib\JsonPayload;
 use Tests\Lib\RequestTesterTrait;
 use Tests\Unit\UnitTestCase;
+
 
 class ApiClientTest extends UnitTestCase
 {
@@ -110,7 +108,6 @@ class ApiClientTest extends UnitTestCase
      * @param string $platform
      * @param int $year
      * @param int $month
-     * @param string $expectPath
      * @param array $query
      */
     public function getDailyStatsReport(string $platform, int $year, int $month, array $query)
@@ -129,77 +126,6 @@ class ApiClientTest extends UnitTestCase
         self::assertSame(self::SAMPLE_JSON_RESPONSE, $data);
     }
 
-
-    /**
-     * @test
-     */
-    public function loadTasksWithJson()
-    {
-        $client = $this->getAuthenticatedClient();
-        $platform = 'google';
-        $session = new SessionBuilder(
-            self::VALID_SESSION_ID,
-            $platform,
-            $this->faker->numberBetween(10, 50),
-            $this->faker->numberBetween(1, 5)
-        );
-        $session = $session->addQuery(new QueryBuilder('test'));
-
-        $request = self::expectRequest()
-                       ->withMethod(self::equalTo('POST'))
-                       ->withPath(self::equalTo("/{$platform}/load_tasks/"))
-                       ->withPayload(new JsonPayload($session->toArray()))
-        ;
-
-        $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
-
-        $sessionData = $client->loadTasks($session);
-
-        self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
-    }
-
-    /**
-     * @test
-     */
-    public function getTasksSessionStatus()
-    {
-        $client = $this->getAuthenticatedClient();
-
-        $request = self::expectRequest()
-                       ->withMethod(self::equalTo('GET'))
-                       ->withPath(self::equalTo("/google/session/".self::VALID_SESSION_ID."/"))
-        ;
-        $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
-
-        $sessionData = $client->getTasksSessionStatus('google', self::VALID_SESSION_ID);
-
-        self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
-    }
-
-    /**
-     * @test
-     */
-    public function getTasksSessionResults()
-    {
-        $client = $this->getAuthenticatedClient();
-
-        $limit = 1000;
-        $offset = 2000;
-
-        $request = self::expectRequest()
-                       ->withMethod(self::equalTo('GET'))
-                       ->withPath(self::equalTo("/google/results/".self::VALID_SESSION_ID."/"))
-                       ->withQuery(self::equalTo([
-                           'limit' => $limit,
-                           'offset' => $offset,
-                       ]))
-        ;
-
-        $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
-        $sessionData = $client->getTasksSessionResults('google', self::VALID_SESSION_ID, $limit, $offset);
-
-        self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
-    }
 
     private function getAuthenticatedClient(): ApiClient
     {
