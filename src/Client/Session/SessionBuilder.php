@@ -104,4 +104,9 @@ final class SessionBuilder
     {
         return $this->platform;
     }
+
+    public function getId(): string
+    {
+        return $this->sessionId;
+    }
 }

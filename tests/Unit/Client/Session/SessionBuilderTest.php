@@ -67,6 +67,7 @@ class SessionBuilderTest extends UnitTestCase
         self::assertContainsRequiredFields($data);
         self::assertHasQueries($data);
         self::assertContainsQuery($query, $data, 0);
+        self::assertSame($builder->getId(), self::VALID_SESSION_ID);
     }
 
     /**
