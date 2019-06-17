@@ -2,9 +2,9 @@
 
 namespace Tests\Functional\Client;
 
+use SeoApi\Client\Session\QueryBuilder;
+use SeoApi\Client\Session\SessionBuilder;
 use Tests\Functional\FunctionalTestCase;
-use function random_bytes;
-use function sha1;
 use function usleep;
 
 class SessionsTest extends FunctionalTestCase
@@ -121,44 +121,65 @@ JSON;
       ]
     }
 JSON;
-    const SESSION_TIMEOUT = 15;
+    const SESSION_TIMEOUT = 20;
+    const PAGE_SIZE = 10;
+    const PAGES_TOTAL = 1;
+    const TEST_QUERY_ID = 'query-id-test';
+    const SAMPLE_QUERY = 'утраченное время';
 
     /**
      * @test
      */
     public function runTaskFlow()
     {
-        $sessionId = sha1(random_bytes(8));
-        $queryId = sha1(random_bytes(8));
-        $sessionStarted = $this->client->loadTasks('google', $sessionId, 10, 1, [
-            [
-                'query' => 'test',
-                'query_id' => $queryId,
-            ],
-        ]);
+        $sessionId = $this->faker->uuid;
+        $session = (new SessionBuilder($sessionId, 'google', self::PAGE_SIZE, self::PAGES_TOTAL));
+        $session->addQuery(new QueryBuilder(self::SAMPLE_QUERY, self::TEST_QUERY_ID));
+
+        $sessionStarted = $this->client->loadTasks('google', $session);
 
         self::assertNotEmpty($sessionStarted);
         $this->assertJsonSchemaIsValid($sessionStarted, self::NEW_SESSION_JSON_SCHEMA);
 
         self::assertSame($sessionId, $sessionStarted['session_id']);
         self::assertSame('OK', $sessionStarted['status']);
-        self::assertSame([$queryId], $sessionStarted['query_ids']);
+        self::assertSame([self::TEST_QUERY_ID], $sessionStarted['query_ids']);
 
-        $timePassed = 0;
+
         $results = null;
 
-        while ($timePassed < self::SESSION_TIMEOUT) {
-            $timePassed += 0.1;
-            usleep(0.1 * 1000 * 1000);
-            $status = $this->client->getTasksSessionStatus('google', $sessionId);
-            $this->assertJsonSchemaIsValid($status, self::SESSION_STATUS_JSON_SCHEMA);
-            if ($status['status'] === 'finished') {
-                $results = $this->client->getTasksSessionResults('google', $sessionId, 10);
+        $ticker = $this->waitForSessionStatusResponse($sessionId);
+        foreach ($ticker as $statusData) {
+            $this->assertJsonSchemaIsValid($statusData, self::SESSION_STATUS_JSON_SCHEMA);
+        }
+        $results = $ticker->getReturn();
+
+        self::assertNotNull($results);
+        $this->assertJsonSchemaIsValid($results, self::SESSION_RESULT_JSON_SCHEMA);
+    }
+
+    private function waitForSessionStatusResponse(string $sessionId): \Generator
+    {
+        $secondsPassed = 0;
+        $timeout = 0.5;
+        $tasksFinished = false;
+
+        while ($secondsPassed < self::SESSION_TIMEOUT) {
+            $secondsPassed += $timeout;
+            usleep($timeout * 1000 * 1000);
+            $statusData = $this->client->getTasksSessionStatus('google', $sessionId);
+            yield $statusData;
+
+            if ($statusData['status'] === 'finished') {
+                $tasksFinished = true;
                 break;
             }
         }
 
-        self::assertNotNull($results);
-        $this->assertJsonSchemaIsValid($results, self::SESSION_RESULT_JSON_SCHEMA);
+        if (!$tasksFinished) {
+            return null;
+        }
+
+        return $this->client->getTasksSessionResults('google', $sessionId, 10);
     }
 }
