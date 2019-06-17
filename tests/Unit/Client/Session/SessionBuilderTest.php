@@ -35,6 +35,15 @@ class SessionBuilderTest extends UnitTestCase
         );
     }
 
+
+    /**
+     * @test
+     */
+    public function getPlatform()
+    {
+        self::assertSame(self::PLATFORM_NAME, $this->baseBuilder->getPlatform());
+    }
+
     /**
      * @test
      */

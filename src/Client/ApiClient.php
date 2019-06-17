@@ -106,8 +106,9 @@ final class ApiClient
         return $this->unserializeResponse($response);
     }
 
-    public function loadTasks(string $platform, SessionBuilder $session): array
+    public function loadTasks(SessionBuilder $session): array
     {
+        $platform = $session->getPlatform();
         $response = $this->sendJsonPostApiRequest("/{$platform}/load_tasks/", $session->toArray());
 
         return $this->unserializeResponse($response);

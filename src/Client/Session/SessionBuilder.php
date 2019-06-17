@@ -99,4 +99,9 @@ final class SessionBuilder
 
         return $this;
     }
+
+    public function getPlatform(): string
+    {
+        return $this->platform;
+    }
 }

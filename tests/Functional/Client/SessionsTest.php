@@ -136,7 +136,7 @@ JSON;
         $session = (new SessionBuilder($sessionId, 'google', self::PAGE_SIZE, self::PAGES_TOTAL));
         $session->addQuery(new QueryBuilder(self::SAMPLE_QUERY, self::TEST_QUERY_ID));
 
-        $sessionStarted = $this->client->loadTasks('google', $session);
+        $sessionStarted = $this->client->loadTasks($session);
 
         self::assertNotEmpty($sessionStarted);
         $this->assertJsonSchemaIsValid($sessionStarted, self::NEW_SESSION_JSON_SCHEMA);

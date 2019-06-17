@@ -136,9 +136,10 @@ class ApiClientTest extends UnitTestCase
     public function loadTasksWithJson()
     {
         $client = $this->getAuthenticatedClient();
+        $platform = 'google';
         $session = new SessionBuilder(
             self::VALID_SESSION_ID,
-            'google',
+            $platform,
             $this->faker->numberBetween(10, 50),
             $this->faker->numberBetween(1, 5)
         );
@@ -146,13 +147,13 @@ class ApiClientTest extends UnitTestCase
 
         $request = self::expectRequest()
                        ->withMethod(self::equalTo('POST'))
-                       ->withPath(self::equalTo("/google/load_tasks/"))
+                       ->withPath(self::equalTo("/{$platform}/load_tasks/"))
                        ->withPayload(new JsonPayload($session->toArray()))
         ;
 
         $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
 
-        $sessionData = $client->loadTasks('google', $session);
+        $sessionData = $client->loadTasks($session);
 
         self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
     }
