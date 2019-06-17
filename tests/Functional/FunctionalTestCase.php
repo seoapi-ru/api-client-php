@@ -2,6 +2,7 @@
 
 namespace Tests\Functional;
 
+use Faker\Factory;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Validator;
 use PHPUnit\Framework\TestCase;
@@ -16,6 +17,8 @@ class FunctionalTestCase extends TestCase
     protected $jsonSchemaValidator;
     /** @var ApiClient */
     protected $client;
+    /** @var \Faker\Generator */
+    protected $faker;
 
     public static function setUpBeforeClass()
     {
@@ -32,6 +35,8 @@ class FunctionalTestCase extends TestCase
 
     protected function setUp()
     {
+        $this->faker = Factory::create('ru');
+
         $this->client = ApiClient::fromToken(
             getenv('SEOAPI_CLIENT_TOKEN'),
             getenv('SEOAPI_CLIENT_BASEURL'),
