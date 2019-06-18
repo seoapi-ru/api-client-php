@@ -4,10 +4,10 @@ namespace Tests\Unit\Client;
 
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\Assert;
-use PHPUnit\Framework\Constraint\ArraySubset;
 use SeoApi\Client\ApiClient;
 use SeoApi\Client\Exception\BadResponseException;
 use Tests\Lib\FormPayload;
+use Tests\Lib\HeadersSet;
 use Tests\Lib\RequestTesterTrait;
 use Tests\Unit\UnitTestCase;
 
@@ -161,7 +161,7 @@ class AuthTest extends UnitTestCase
 
     private function expectSignedRequest(Response $expectResponse): void
     {
-        $authHeaders = new ArraySubset(['Authorization' => ['Token '.self::VALID_TOKEN]]);
+        $authHeaders = new HeadersSet(['Authorization' => ['Token '.self::VALID_TOKEN]]);
 
         $this->expectResponse(
             self::expectRequest()->withHeaders($authHeaders),

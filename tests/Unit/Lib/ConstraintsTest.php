@@ -3,8 +3,10 @@
 namespace Tests\Unit\Lib;
 
 use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Constraint\Constraint;
 use PHPUnit\Framework\TestCase;
 use Tests\Lib\FormPayload;
+use Tests\Lib\HeadersSet;
 
 class ConstraintsTest extends TestCase
 {
@@ -48,5 +50,48 @@ class ConstraintsTest extends TestCase
         $this->expectException(AssertionFailedError::class);
 
         self::assertThat($invalid, $constraint);
+    }
+
+    public function provideHeaderSets()
+    {
+        $sampleSet = $validSet = [
+            'Authorization' => 'Foo bar',
+            'Content-Type' => ['Type1', 'Type2'],
+        ];
+        $validGuzzleSet = [
+            'Authorization' => ['Foo bar'],
+            'Content-Type' => ['Type1', 'Type2'],
+        ];
+        $validPlainSet = [
+            'Authorization' => 'Foo bar',
+            'Content-Type' => 'Type1, Type2',
+        ];
+        $emptySet = [];
+        $randomSet = ['Anything' => 'AnyValue'];
+
+        return [
+//            [$sampleSet, $validSet, self::isTrue()],
+            [$sampleSet, $validPlainSet, self::isTrue()],
+            [$sampleSet, $validGuzzleSet, self::isTrue()],
+            [$sampleSet, $randomSet, self::isFalse()],
+            [$sampleSet, [], self::isFalse()],
+            [$emptySet, [], self::isTrue()],
+            [$emptySet, $randomSet, self::isFalse()],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider provideHeaderSets
+     *
+     * @param array $expectHeaders
+     * @param array $testHeaders
+     * @param Constraint $assertion
+     */
+    public function headersAssertion(array $expectHeaders, array $testHeaders, Constraint $assertion)
+    {
+        $constraint = new HeadersSet($expectHeaders);
+
+        self::assertThat($constraint->evaluate($testHeaders, '', true), $assertion);
     }
 }
