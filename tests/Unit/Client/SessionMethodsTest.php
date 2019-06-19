@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Client;
 
+use PHPUnit\Framework\Exception as PhpUnitException;
 use SeoApi\Client\ApiClient;
 use SeoApi\Client\Exception\TimeoutExceededError;
 use SeoApi\Client\Session\QueryBuilder;
@@ -9,6 +10,7 @@ use SeoApi\Client\Session\SessionBuilder;
 use Tests\Lib\JsonPayload;
 use Tests\Lib\RequestTesterTrait;
 use Tests\Unit\UnitTestCase;
+use function get_class;
 use function time;
 
 class SessionMethodsTest extends UnitTestCase
@@ -116,14 +118,12 @@ class SessionMethodsTest extends UnitTestCase
                 // then set finish response which should stop the loop
                 $this->expectResponse($pingRequest, self::jsonOkResponse(['status' => 'finished']));
             }
-            $success = $ticker->getReturn();
-        } catch (\PHPUnit\Framework\Exception $e) {
+        } catch (PhpUnitException $e) {
             throw $e;
         } catch (\Throwable $e) {
-            self::fail($e->getMessage());
+            self::fail(get_class($e).": ".$e->getMessage());
         }
 
-        self::assertTrue($success, 'Finished status should be marked with true generator value');
         self::assertLessThanOrEqual(
             $sessionTimeout + 1,
             time() - $pingStarted,
@@ -159,7 +159,7 @@ class SessionMethodsTest extends UnitTestCase
             }
         } catch (TimeoutExceededError $e) {
             $timeoutThrown = true;
-        } catch (\PHPUnit\Framework\Exception $e) {
+        } catch (PhpUnitException $e) {
             throw $e;
         } catch (\Throwable $e) {
             self::fail($e->getMessage());
