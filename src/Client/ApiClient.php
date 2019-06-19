@@ -13,12 +13,14 @@ use SeoApi\Client\Exception\BadResponseException;
 use SeoApi\Client\Exception\TimeoutExceededError;
 use SeoApi\Client\Exception\TransportException;
 use SeoApi\Client\Session\SessionBuilder;
+use function array_merge;
 use function is_array;
 
 final class ApiClient
 {
     public const STATS_PERIODS = ['all', 'month', 'today'];
     public const SEARCH_PLATFORMS = ['google', 'yandex', 'wordstat'];
+
     /** @var ClientInterface */
     private $httpClient;
     /** @var string */
@@ -158,9 +160,8 @@ final class ApiClient
         try {
             $response = $this->httpClient->post($path, [
                 RequestOptions::JSON => $payload,
-                RequestOptions::HEADERS => $this->buildHeaders(),
+                RequestOptions::HEADERS => $this->buildHeaders(['Accept' => 'application/json']),
             ]);
-
 
             return $response;
         } catch (BadGuzzleResponseException $e) {
@@ -179,7 +180,7 @@ final class ApiClient
         try {
             $response = $this->httpClient->get($this->baseUrl.$path, [
                 RequestOptions::QUERY => $query,
-                RequestOptions::HEADERS => $this->buildHeaders(),
+                RequestOptions::HEADERS => $this->buildHeaders(['Accept' => 'application/json']),
             ]);
 
             return $response;
@@ -194,14 +195,14 @@ final class ApiClient
         }
     }
 
-    private function buildHeaders(): array
+    private function buildHeaders(array $extraHeaders = []): array
     {
         $headers = [];
         if (!empty($this->token)) {
-            $headers['Authorization'] = 'Token '.$this->token;
+            $headers['Authorization'] = ['Token '.$this->token];
         }
 
-        return $headers;
+        return array_merge($headers, $extraHeaders);
     }
 
     private function unserializeResponse(Response $response): array

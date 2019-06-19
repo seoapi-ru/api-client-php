@@ -4,6 +4,9 @@ namespace Tests\Unit\Client;
 
 use PHPUnit\Framework\Constraint\ArraySubset;
 use SeoApi\Client\ApiClient;
+use SeoApi\Client\Session\QueryBuilder;
+use SeoApi\Client\Session\SessionBuilder;
+use Tests\Lib\HeadersSet;
 use Tests\Lib\RequestTesterTrait;
 use Tests\Unit\UnitTestCase;
 
@@ -21,6 +24,42 @@ class ApiClientTest extends UnitTestCase
     {
         parent::setUp();
         $this->setupRequestTester();
+    }
+
+    public function provideJsonRespondableMethods()
+    {
+        $sampleSession = (new SessionBuilder('test_id', 'google', 1, 2))
+            ->addQuery(new QueryBuilder('test_query'));
+
+        return [
+            ['getRegions', 'test'],
+            ['getDailyStatsReport', 'google', 2019, 1, 'test_query'],
+            ['getTasksSessionStatus', 'google', 'test_id'],
+            ['getTasksSessionResults', 'google', 'test_id', 1, 2],
+            ['loadTasks', $sampleSession],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider provideJsonRespondableMethods
+     *
+     * @param string $method
+     * @param array $args
+     */
+    public function addsJsonHeader(string $method, ...$args)
+    {
+        $client = $this->getAuthenticatedClient();
+
+        $request = self::expectRequest()
+                       ->withHeaders(new HeadersSet([
+                           'Accept' => ['application/json'],
+                       ]))
+        ;
+
+        $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
+
+        $client->$method(...$args);
     }
 
     /**
