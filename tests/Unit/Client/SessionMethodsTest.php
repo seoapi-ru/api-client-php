@@ -7,14 +7,10 @@ use SeoApi\Client\ApiClient;
 use SeoApi\Client\Exception\TimeoutExceededError;
 use SeoApi\Client\Session\QueryBuilder;
 use SeoApi\Client\Session\SessionBuilder;
-use Tests\Lib\GZippedJsonPayload;
-use Tests\Lib\HeadersSet;
+use Tests\Lib\JsonPayload;
 use Tests\Lib\RequestTesterTrait;
 use Tests\Unit\UnitTestCase;
 use function get_class;
-use function gzencode;
-use function json_encode;
-use function strlen;
 use function time;
 
 class SessionMethodsTest extends UnitTestCase
@@ -41,18 +37,13 @@ class SessionMethodsTest extends UnitTestCase
     {
         $client = $this->getAuthenticatedClient();
         $session = $this->sampleSession();
-        $sessionGzipped = gzencode(json_encode($session->toArray(), ApiClient::GZIP_COMPRESSION_LEVEL));
 
         $path = sprintf("/%s/load_tasks/", self::PLATFORM);
         $request = self::expectRequest()
                        ->withMethod(self::equalTo('POST'))
                        ->withPath(self::equalTo($path))
-                       ->withHeaders(new HeadersSet([
-                           'Content-encoding' => 'gzip',
-                           'Vary' => 'Accept-encoding',
-                           'Content-length' => (string)strlen($sessionGzipped),
-                       ]))
-                       ->withPayload(new GZippedJsonPayload($session->toArray()))
+                       ->withPayload(new JsonPayload($session->toArray()))
+
         ;
 
         $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));

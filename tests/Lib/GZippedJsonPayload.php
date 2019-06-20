@@ -9,6 +9,9 @@ use function gzdecode;
 use function is_string;
 use function json_decode;
 
+/**
+ * @deprecated Unless will be needed later
+ */
 class GZippedJsonPayload extends Constraint
 {
     /** @var array */

@@ -14,13 +14,10 @@ use SeoApi\Client\Exception\TimeoutExceededError;
 use SeoApi\Client\Exception\TransportException;
 use SeoApi\Client\Session\SessionBuilder;
 use function array_merge;
-use function gzencode;
 use function is_array;
-use function json_encode;
 
 final class ApiClient
 {
-    public const GZIP_COMPRESSION_LEVEL = 3;
     public const STATS_PERIODS = ['all', 'month', 'today'];
     public const SEARCH_PLATFORMS = ['google', 'yandex', 'wordstat'];
     private const REQUEST_TIMEOUT = 1;
@@ -163,15 +160,9 @@ final class ApiClient
     private function sendJsonPostApiRequest(string $path, array $payload): Response
     {
         try {
-            $payloadCompressed = $this->compressGzip($payload);
             $response = $this->httpClient->post($path, [
-                RequestOptions::BODY => $payloadCompressed,
-                RequestOptions::HEADERS => $this->buildHeaders([
-                    'Accept' => 'application/json',
-                    'Content-encoding' => 'gzip',
-                    'Vary' => 'Accept-encoding',
-                    'Content-length' => strlen($payloadCompressed),
-                ]),
+                RequestOptions::JSON => $payload,
+                RequestOptions::HEADERS => $this->buildHeaders(['Accept' => 'application/json']),
             ]);
 
             return $response;
@@ -249,10 +240,5 @@ final class ApiClient
         if (!$tasksFinished) {
             throw new TimeoutExceededError("Timeout of $sessionTimeout seconds is expired");
         }
-    }
-
-    private function compressGzip(array $payload): string
-    {
-        return gzencode(json_encode($payload), self::GZIP_COMPRESSION_LEVEL);
     }
 }
