@@ -20,6 +20,7 @@ final class ApiClient
 {
     public const STATS_PERIODS = ['all', 'month', 'today'];
     public const SEARCH_PLATFORMS = ['google', 'yandex', 'wordstat'];
+    private const STEP_TIMEOUT = 0.5;
 
     /** @var ClientInterface */
     private $httpClient;
@@ -125,11 +126,12 @@ final class ApiClient
         return $this->unserializeResponse($response);
     }
 
-    public function getTasksSessionResults(string $platform, string $sessionId, $limit, $offset = 0): array
+    public function getTasksSessionResults(string $platform, string $sessionId, int $limit, int $offset = 0): array
     {
         $response = $this->sendGetApiRequest("/{$platform}/results/{$sessionId}/", [
             'limit' => $limit,
             'offset' => $offset,
+            'session-id' => $sessionId,
         ]);
 
         return $this->unserializeResponse($response);
@@ -178,7 +180,7 @@ final class ApiClient
     private function sendGetApiRequest(string $path, array $query): Response
     {
         try {
-            $response = $this->httpClient->get($this->baseUrl.$path, [
+            $response = $this->httpClient->get($path, [
                 RequestOptions::QUERY => $query,
                 RequestOptions::HEADERS => $this->buildHeaders(['Accept' => 'application/json']),
             ]);
@@ -216,30 +218,27 @@ final class ApiClient
         return $jsonDecoded;
     }
 
-    public function waitForSessionFinish(SessionBuilder $session, int $sessionTimeout): \Generator
+    public function waitForSessionFinish(SessionBuilder $session, int $sessionTimeout, callable $progressCallback): void
     {
         $secondsPassed = 0;
-        $stepTimeout = 0.5;
         $tasksFinished = false;
-        if ($sessionTimeout < $stepTimeout) {
-            throw new LogicException("Set session timeout more thah $stepTimeout seconds");
+        if ($sessionTimeout < self::STEP_TIMEOUT) {
+            throw new LogicException(sprintf("Set session timeout more than %s seconds", self::STEP_TIMEOUT));
         }
 
         while ($secondsPassed < $sessionTimeout) {
-            $secondsPassed += $stepTimeout;
-            usleep($stepTimeout * 1000 * 1000);
+            $secondsPassed += self::STEP_TIMEOUT;
+            usleep(self::STEP_TIMEOUT * 1000 * 1000);
             $statusData = $this->getTasksSessionStatus('google', $session->getId());
             if ($statusData['status'] === 'finished') {
                 $tasksFinished = true;
                 break;
             }
-            yield $statusData;
+            $progressCallback($statusData);
         }
 
         if (!$tasksFinished) {
             throw new TimeoutExceededError("Timeout of $sessionTimeout seconds is expired");
         }
-
-        return true;
     }
 }
