@@ -2,7 +2,9 @@
 
 namespace SeoApi\Client\Session;
 
-final class QueryBuilder
+use JsonSerializable;
+
+final class QueryBuilder implements JsonSerializable
 {
     /** @var string */
     private $query;
@@ -19,6 +21,19 @@ final class QueryBuilder
     {
         $this->query = $query;
         $this->queryId = $queryId;
+    }
+
+    public static function fromArray($query): self
+    {
+        $builder = new static($query['query'], $query['query_id'] ?? null);
+        if (isset($query['numdoc'], $query['total_pages'])) {
+            $builder->paginate($query['numdoc'], $query['total_pages']);
+        }
+        if (isset($query['region'])) {
+            $builder->region($query['region']);
+        }
+
+        return $builder;
     }
 
     public function paginate(int $pageSize, int $pagesTotal): self
@@ -53,5 +68,10 @@ final class QueryBuilder
         }
 
         return $data;
+    }
+
+    public function jsonSerialize()
+    {
+        return $this->toArray();
     }
 }
