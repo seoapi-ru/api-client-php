@@ -70,7 +70,7 @@ class ConstraintsTest extends TestCase
         $randomSet = ['Anything' => 'AnyValue'];
 
         return [
-//            [$sampleSet, $validSet, self::isTrue()],
+            [$sampleSet, $validSet, self::isTrue()],
             [$sampleSet, $validPlainSet, self::isTrue()],
             [$sampleSet, $validGuzzleSet, self::isTrue()],
             [$sampleSet, $randomSet, self::isFalse()],
