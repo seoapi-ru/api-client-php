@@ -14,13 +14,16 @@ use SeoApi\Client\Exception\TimeoutExceededError;
 use SeoApi\Client\Exception\TransportException;
 use SeoApi\Client\Session\SessionBuilder;
 use function array_merge;
+use function gzencode;
 use function is_array;
+use function json_encode;
 
 final class ApiClient
 {
+    public const GZIP_COMPRESSION_LEVEL = 3;
     public const STATS_PERIODS = ['all', 'month', 'today'];
     public const SEARCH_PLATFORMS = ['google', 'yandex', 'wordstat'];
-    private const STEP_TIMEOUT = 0.5;
+    private const REQUEST_TIMEOUT = 1;
 
     /** @var ClientInterface */
     private $httpClient;
@@ -160,9 +163,15 @@ final class ApiClient
     private function sendJsonPostApiRequest(string $path, array $payload): Response
     {
         try {
+            $payloadCompressed = $this->compressGzip($payload);
             $response = $this->httpClient->post($path, [
-                RequestOptions::JSON => $payload,
-                RequestOptions::HEADERS => $this->buildHeaders(['Accept' => 'application/json']),
+                RequestOptions::BODY => $payloadCompressed,
+                RequestOptions::HEADERS => $this->buildHeaders([
+                    'Accept' => 'application/json',
+                    'Content-encoding' => 'gzip',
+                    'Vary' => 'Accept-encoding',
+                    'Content-length' => strlen($payloadCompressed),
+                ]),
             ]);
 
             return $response;
@@ -222,13 +231,13 @@ final class ApiClient
     {
         $secondsPassed = 0;
         $tasksFinished = false;
-        if ($sessionTimeout < self::STEP_TIMEOUT) {
-            throw new LogicException(sprintf("Set session timeout more than %s seconds", self::STEP_TIMEOUT));
+        if ($sessionTimeout < self::REQUEST_TIMEOUT) {
+            throw new LogicException(sprintf("Set session timeout more than %s seconds", self::REQUEST_TIMEOUT));
         }
 
         while ($secondsPassed < $sessionTimeout) {
-            $secondsPassed += self::STEP_TIMEOUT;
-            usleep(self::STEP_TIMEOUT * 1000 * 1000);
+            $secondsPassed += self::REQUEST_TIMEOUT;
+            usleep(self::REQUEST_TIMEOUT * 1000 * 1000);
             $statusData = $this->getTasksSessionStatus('google', $session->getId());
             if ($statusData['status'] === 'finished') {
                 $tasksFinished = true;
@@ -240,5 +249,10 @@ final class ApiClient
         if (!$tasksFinished) {
             throw new TimeoutExceededError("Timeout of $sessionTimeout seconds is expired");
         }
+    }
+
+    private function compressGzip(array $payload): string
+    {
+        return gzencode(json_encode($payload), self::GZIP_COMPRESSION_LEVEL);
     }
 }

@@ -2,7 +2,14 @@
 
 namespace SeoApi\Client\Session;
 
-final class SessionBuilder
+use InvalidArgumentException;
+use JsonSerializable;
+use function file_get_contents;
+use function is_array;
+use function is_readable;
+use function json_decode;
+
+final class SessionBuilder implements JsonSerializable
 {
     /** @var string */
     private $platform;
@@ -108,5 +115,26 @@ final class SessionBuilder
     public function getId(): string
     {
         return $this->sessionId;
+    }
+
+    public function addQueryFile(string $queriesFile): self
+    {
+        if (!is_readable($queriesFile)) {
+            throw new InvalidArgumentException("File is not readable: $queriesFile");
+        }
+        $data = json_decode(file_get_contents($queriesFile), true);
+        if (!is_array($data)) {
+            throw new InvalidArgumentException("JSON is not decoded as array in $queriesFile");
+        }
+        foreach ($data as $query) {
+            $this->addQuery(QueryBuilder::fromArray($query));
+        }
+
+        return $this;
+    }
+
+    public function jsonSerialize()
+    {
+        return $this->toArray();
     }
 }

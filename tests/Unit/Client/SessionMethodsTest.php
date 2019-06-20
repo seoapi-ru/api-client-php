@@ -7,10 +7,14 @@ use SeoApi\Client\ApiClient;
 use SeoApi\Client\Exception\TimeoutExceededError;
 use SeoApi\Client\Session\QueryBuilder;
 use SeoApi\Client\Session\SessionBuilder;
-use Tests\Lib\JsonPayload;
+use Tests\Lib\GZippedJsonPayload;
+use Tests\Lib\HeadersSet;
 use Tests\Lib\RequestTesterTrait;
 use Tests\Unit\UnitTestCase;
 use function get_class;
+use function gzencode;
+use function json_encode;
+use function strlen;
 use function time;
 
 class SessionMethodsTest extends UnitTestCase
@@ -22,7 +26,7 @@ class SessionMethodsTest extends UnitTestCase
     private const VALID_SESSION_ID = '07d38bbc-1a97-4f82-acf7-fd0c5766e095';
     private const AUTH_TOKEN = 'test_token';
     private const PLATFORM = 'google';
-    private const SESSION_TIMEOUT = 2;
+    private const SESSION_TIMEOUT = 3;
 
     protected function setUp(): void
     {
@@ -36,13 +40,19 @@ class SessionMethodsTest extends UnitTestCase
     public function loadTasksWithJson()
     {
         $client = $this->getAuthenticatedClient();
-        $platform = self::PLATFORM;
-        $session = $this->sampleSession($platform);
+        $session = $this->sampleSession();
+        $sessionGzipped = gzencode(json_encode($session->toArray(), ApiClient::GZIP_COMPRESSION_LEVEL));
 
+        $path = sprintf("/%s/load_tasks/", self::PLATFORM);
         $request = self::expectRequest()
                        ->withMethod(self::equalTo('POST'))
-                       ->withPath(self::equalTo("/{$platform}/load_tasks/"))
-                       ->withPayload(new JsonPayload($session->toArray()))
+                       ->withPath(self::equalTo($path))
+                       ->withHeaders(new HeadersSet([
+                           'Content-encoding' => 'gzip',
+                           'Vary' => 'Accept-encoding',
+                           'Content-length' => (string)strlen($sessionGzipped),
+                       ]))
+                       ->withPayload(new GZippedJsonPayload($session->toArray()))
         ;
 
         $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
@@ -103,7 +113,7 @@ class SessionMethodsTest extends UnitTestCase
      */
     public function waitForSessionFinishSuccess()
     {
-        $session = $this->sampleSession(self::PLATFORM);
+        $session = $this->sampleSession();
 
         $client = $this->getAuthenticatedClient();
         $path = sprintf("/%s/session/%s/", self::PLATFORM, self::VALID_SESSION_ID);
@@ -118,10 +128,13 @@ class SessionMethodsTest extends UnitTestCase
 
         $pingStartedTime = time();
         try {
-            $client->waitForSessionFinish($session, self::SESSION_TIMEOUT,
+            $client->waitForSessionFinish(
+                $session,
+                self::SESSION_TIMEOUT,
                 function ($statusResponse) use ($pingRequest) {
-                self::assertNotEquals('finished', $statusResponse['status']);
-                });
+                    self::assertNotEquals('finished', $statusResponse['status']);
+                }
+            );
         } catch (PhpUnitException $e) {
             throw $e;
         } catch (\Throwable $e) {
@@ -136,7 +149,7 @@ class SessionMethodsTest extends UnitTestCase
      */
     public function waitForSessionFinishTimeoutReached()
     {
-        $session = $this->sampleSession(self::PLATFORM);
+        $session = $this->sampleSession();
         $client = $this->getAuthenticatedClient();
 
         $path = sprintf("/%s/session/%s/", self::PLATFORM, self::VALID_SESSION_ID);
@@ -175,7 +188,15 @@ class SessionMethodsTest extends UnitTestCase
         return ApiClient::fromToken(self::AUTH_TOKEN, self::BASE_URL, $this->httpClientFactory);
     }
 
-    private function sampleSession(string $platform): SessionBuilder
+    private function sampleSession(): SessionBuilder
+    {
+        $session = $this->baseSession(self::PLATFORM);
+        $session = $session->addQuery(new QueryBuilder('test'));
+
+        return $session;
+    }
+
+    private function baseSession(string $platform): SessionBuilder
     {
         $session = new SessionBuilder(
             self::VALID_SESSION_ID,
@@ -183,7 +204,6 @@ class SessionMethodsTest extends UnitTestCase
             $this->faker->numberBetween(10, 50),
             $this->faker->numberBetween(1, 5)
         );
-        $session = $session->addQuery(new QueryBuilder('test'));
 
         return $session;
     }

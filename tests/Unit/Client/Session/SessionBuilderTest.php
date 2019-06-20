@@ -5,6 +5,8 @@ namespace Tests\Unit\Client\Session;
 use SeoApi\Client\Session\QueryBuilder;
 use SeoApi\Client\Session\SessionBuilder;
 use Tests\Unit\UnitTestCase;
+use function file_put_contents;
+use function json_encode;
 
 class SessionBuilderTest extends UnitTestCase
 {
@@ -35,7 +37,6 @@ class SessionBuilderTest extends UnitTestCase
         );
     }
 
-
     /**
      * @test
      */
@@ -57,7 +58,7 @@ class SessionBuilderTest extends UnitTestCase
     /**
      * @test
      */
-    public function buildsRequiredFields()
+    public function addsQuery()
     {
         $query = $this->randomQuery();
         $builder = $this->baseBuilder->addQuery($query);
@@ -67,6 +68,30 @@ class SessionBuilderTest extends UnitTestCase
         self::assertContainsRequiredFields($data);
         self::assertHasQueries($data);
         self::assertContainsQuery($query, $data, 0);
+        self::assertSame($builder->getId(), self::VALID_SESSION_ID);
+    }
+
+    /**
+     * @test
+     */
+    public function addsQueriesFromFile()
+    {
+        $queriesFile = __DIR__.'/session_builder_queries_sample.json';
+        $fileQueries = [
+            $this->randomQuery(),
+            $this->randomQuery(),
+        ];
+        $written = file_put_contents($queriesFile, json_encode($fileQueries));
+        self::assertNotFalse($written, "Error on writing $queriesFile");
+
+        $builder = $this->baseBuilder->addQueryFile($queriesFile);
+        $data = $builder->toArray();
+
+        self::assertContainsRequiredFields($data);
+        self::assertHasQueries($data);
+        foreach ($fileQueries as $i => $query) {
+            self::assertContainsQuery($query, $data, $i);
+        }
         self::assertSame($builder->getId(), self::VALID_SESSION_ID);
     }
 
@@ -92,8 +117,7 @@ class SessionBuilderTest extends UnitTestCase
      */
     public function addsIsMobile()
     {
-        $query = $this->randomQuery();
-        $builder = $this->baseBuilder->addQuery($query);
+        $builder = $this->baseBuilder->addQuery($this->randomQuery());
 
         $data = $builder->toArray();
         self::assertArrayNotHasKey('is_mobile', $data);
@@ -114,8 +138,7 @@ class SessionBuilderTest extends UnitTestCase
      */
     public function addsRegion()
     {
-        $query = $this->randomQuery();
-        $builder = $this->baseBuilder->addQuery($query);
+        $builder = $this->baseBuilder->addQuery($this->randomQuery());
 
         $data = $builder->toArray();
         self::assertArrayNotHasKey('region', $data);
@@ -131,8 +154,7 @@ class SessionBuilderTest extends UnitTestCase
      */
     public function addsParams()
     {
-        $query = $this->randomQuery();
-        $builder = $this->baseBuilder->addQuery($query);
+        $builder = $this->baseBuilder->addQuery($this->randomQuery());
 
         $data = $builder->toArray();
         self::assertArrayNotHasKey('params', $data);
@@ -142,6 +164,16 @@ class SessionBuilderTest extends UnitTestCase
         $data = $builder->toArray();
 
         self::assertSame($paramsExpected, $data['params']);
+    }
+
+    /**
+     * @test
+     */
+    public function encodesToJson()
+    {
+        $builder = $this->baseBuilder->addQuery($this->randomQuery());
+
+        self::assertSame(json_encode($builder->toArray()), json_encode($builder));
     }
 
     private function randomQuery(): QueryBuilder
