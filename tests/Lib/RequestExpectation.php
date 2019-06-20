@@ -4,7 +4,6 @@ namespace Tests\Lib;
 
 use GuzzleHttp\Psr7\Request;
 use PHPUnit\Framework\Assert;
-use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Constraint\Constraint;
 use PHPUnit\Framework\Constraint\IsAnything;
 use function GuzzleHttp\Psr7\parse_query;
@@ -72,22 +71,35 @@ final class RequestExpectation extends Constraint
         return 'is equal to HTTP request';
     }
 
-    protected function matches($other): bool
+    public function evaluate($other, $description = '', $returnResult = false)
     {
-        /** @var Request $request */
         $request = $other;
         if (!$request instanceof Request) {
-            throw new AssertionFailedError(sprintf("Request is not a %s instance", Request::class));
+            if ($returnResult) {
+                return false;
+            }
+            $this->fail($other, sprintf("Request is not a %s instance", Request::class));
         }
         $query = parse_query($request->getUri()->getQuery());
+        $method = $request->getMethod();
+        $headers = $request->getHeaders();
+        $payload = $request->getBody()->getContents();
+        $path = $request->getUri()->getPath();
 
-        Assert::assertThat($request->getMethod(), $this->method);
-        Assert::assertThat($request->getHeaders(), $this->headers);
-        Assert::assertThat($request->getBody()->getContents(), $this->payload);
-        Assert::assertThat($query, $this->query);
-        Assert::assertThat($request->getUri()->getPath(), $this->path);
+        if ($returnResult) {
+            return $this->method->evaluate($method, '', true)
+                && $this->headers->evaluate($headers, '', true)
+                && $this->payload->evaluate($payload, '', true)
+                && $this->query->evaluate($query, '', true)
+                && $this->path->evaluate($path, '', true);
+        } else {
+            Assert::assertThat($method, $this->method);
+            Assert::assertThat($headers, $this->headers);
+            Assert::assertThat($payload, $this->payload);
+            Assert::assertThat($query, $this->query);
+            Assert::assertThat($path, $this->path);
+        }
 
         return true;
     }
-
 }
