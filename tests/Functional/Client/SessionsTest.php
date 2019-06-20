@@ -4,6 +4,7 @@ namespace Tests\Functional\Client;
 
 use SeoApi\Client\Session\QueryBuilder;
 use SeoApi\Client\Session\SessionBuilder;
+use SeoApi\Client\Session\SessionResult;
 use Tests\Functional\FunctionalTestCase;
 
 class SessionsTest extends FunctionalTestCase
@@ -70,42 +71,36 @@ JSON;
       "$schema": "http://json-schema.org/draft-04/schema#",
       "type": "object",
       "properties": {
-        "total": {
-          "type": "number",
-          "minimum": 0
-        },
-        "results": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "count_results": {
-                "type": "number"
-              },
-              "created_at": {
-                "type": "date-time"
-              },
-              "started_at": {
-                "type": "number"
-              },
-              "position": {
-                "type": "number"
-              },
-              "page": {
-                "type": "number"
-              },
-              "url": {
-                "type": "string"
-              },
-              "cached_url": {
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              },
-              "snippet": {
-                "type": "string"
-              }
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "count_results": {
+              "type": "number"
+            },
+            "created_at": {
+              "type": "date-time"
+            },
+            "started_at": {
+              "type": "number"
+            },
+            "position": {
+              "type": "number"
+            },
+            "page": {
+              "type": "number"
+            },
+            "url": {
+              "type": "string"
+            },
+            "cached_url": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "snippet": {
+              "type": "string"
             }
           }
         }
@@ -144,17 +139,11 @@ JSON;
         self::assertSame('OK', $sessionStarted['status']);
         self::assertSame([self::TEST_QUERY_ID], $sessionStarted['query_ids']);
 
-        $results = null;
-
-        $ticker = $this->client->waitForSessionFinish($session, self::SESSION_TIMEOUT);
-        foreach ($ticker as $statusData) {
+        $this->client->waitForSessionFinish($session, self::SESSION_TIMEOUT, function (array $statusData) {
             $this->assertJsonSchemaIsValid($statusData, self::SESSION_STATUS_JSON_SCHEMA);
-        }
-        $success = $ticker->getReturn();
+        });
 
-        self::assertTrue($success);
-
-        $results = $this->client->getTasksSessionResults('google', $session->getId(), 10);
+        $results = SessionResult::iterateSessionResults($session, $this->client, 10);
         $this->assertJsonSchemaIsValid($results, self::SESSION_RESULT_JSON_SCHEMA);
     }
 }

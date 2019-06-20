@@ -21,6 +21,8 @@ class SessionMethodsTest extends UnitTestCase
     private const SAMPLE_JSON_RESPONSE = ['region1', 'region2', ['nestedData' => [1, 2, 3]]];
     private const VALID_SESSION_ID = '07d38bbc-1a97-4f82-acf7-fd0c5766e095';
     private const AUTH_TOKEN = 'test_token';
+    private const PLATFORM = 'google';
+    private const SESSION_TIMEOUT = 2;
 
     protected function setUp(): void
     {
@@ -34,7 +36,7 @@ class SessionMethodsTest extends UnitTestCase
     public function loadTasksWithJson()
     {
         $client = $this->getAuthenticatedClient();
-        $platform = 'google';
+        $platform = self::PLATFORM;
         $session = $this->sampleSession($platform);
 
         $request = self::expectRequest()
@@ -63,7 +65,7 @@ class SessionMethodsTest extends UnitTestCase
         ;
         $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
 
-        $sessionData = $client->getTasksSessionStatus('google', self::VALID_SESSION_ID);
+        $sessionData = $client->getTasksSessionStatus(self::PLATFORM, self::VALID_SESSION_ID);
 
         self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
     }
@@ -75,20 +77,23 @@ class SessionMethodsTest extends UnitTestCase
     {
         $client = $this->getAuthenticatedClient();
 
+        $path = sprintf("/%s/results/%s/", self::PLATFORM, self::VALID_SESSION_ID);
         $limit = 1000;
         $offset = 2000;
+        $query = [
+            'limit' => $limit,
+            'offset' => $offset,
+            'session-id' => self::VALID_SESSION_ID,
+        ];
 
         $request = self::expectRequest()
                        ->withMethod(self::equalTo('GET'))
-                       ->withPath(self::equalTo("/google/results/".self::VALID_SESSION_ID."/"))
-                       ->withQuery(self::equalTo([
-                           'limit' => $limit,
-                           'offset' => $offset,
-                       ]))
+                       ->withPath(self::equalTo($path))
+                       ->withQuery(self::equalTo($query))
         ;
 
         $this->expectResponse($request, self::jsonOkResponse(self::SAMPLE_JSON_RESPONSE));
-        $sessionData = $client->getTasksSessionResults('google', self::VALID_SESSION_ID, $limit, $offset);
+        $sessionData = $client->getTasksSessionResults(self::PLATFORM, self::VALID_SESSION_ID, $limit, $offset);
 
         self::assertSame(self::SAMPLE_JSON_RESPONSE, $sessionData);
     }
@@ -98,37 +103,32 @@ class SessionMethodsTest extends UnitTestCase
      */
     public function waitForSessionFinishSuccess()
     {
-        $platform = 'google';
-        $session = $this->sampleSession($platform);
+        $session = $this->sampleSession(self::PLATFORM);
 
         $client = $this->getAuthenticatedClient();
+        $path = sprintf("/%s/session/%s/", self::PLATFORM, self::VALID_SESSION_ID);
+
         $pingRequest = $this->expectRequest()
                             ->withMethod(self::equalTo('GET'))
-                            ->withPath(self::equalTo("/{$platform}/session/".self::VALID_SESSION_ID."/"))
+                            ->withPath(self::equalTo($path))
         ;
         $this->expectResponse($pingRequest, self::jsonOkResponse(['status' => 'unfinished?']));
+        $this->expectResponse($pingRequest, self::jsonOkResponse(['status' => 'unfinished?']));
+        $this->expectResponse($pingRequest, self::jsonOkResponse(['status' => 'finished']));
 
-        $sessionTimeout = 1;
-        $pingStarted = time();
+        $pingStartedTime = time();
         try {
-            $ticker = $client->waitForSessionFinish($session, $sessionTimeout);
-            foreach ($ticker as $statusResponse) {
-                // check waiting step
+            $client->waitForSessionFinish($session, self::SESSION_TIMEOUT,
+                function ($statusResponse) use ($pingRequest) {
                 self::assertNotEquals('finished', $statusResponse['status']);
-                // then set finish response which should stop the loop
-                $this->expectResponse($pingRequest, self::jsonOkResponse(['status' => 'finished']));
-            }
+                });
         } catch (PhpUnitException $e) {
             throw $e;
         } catch (\Throwable $e) {
             self::fail(get_class($e).": ".$e->getMessage());
         }
 
-        self::assertLessThanOrEqual(
-            $sessionTimeout + 1,
-            time() - $pingStarted,
-            'Session wait should be less than timeout, rounded to +1 second up'
-        );
+        self::assertWaitNotExceededTimeout($pingStartedTime);
     }
 
     /**
@@ -136,27 +136,27 @@ class SessionMethodsTest extends UnitTestCase
      */
     public function waitForSessionFinishTimeoutReached()
     {
-        $platform = 'google';
-        $session = $this->sampleSession($platform);
-
+        $session = $this->sampleSession(self::PLATFORM);
         $client = $this->getAuthenticatedClient();
+
+        $path = sprintf("/%s/session/%s/", self::PLATFORM, self::VALID_SESSION_ID);
         $pingRequest = $this->expectRequest()
                             ->withMethod(self::equalTo('GET'))
-                            ->withPath(self::equalTo("/{$platform}/session/".self::VALID_SESSION_ID."/"))
+                            ->withPath(self::equalTo($path))
         ;
+
         $this->expectResponse($pingRequest, self::jsonOkResponse(['status' => 'unfinished?']));
 
         $timeoutThrown = false;
-        $sessionTimeout = 1;
-        $pingStarted = time();
+        $pingStartedTime = time();
         try {
-            $ticker = $client->waitForSessionFinish($session, $sessionTimeout);
-            foreach ($ticker as $statusResponse) {
+            $client->waitForSessionFinish($session, self::SESSION_TIMEOUT,
+                function ($statusResponse) use ($pingRequest) {
                 // check waiting step
                 self::assertNotEquals('finished', $statusResponse['status']);
                 // never return finished status
                 $this->expectResponse($pingRequest, self::jsonOkResponse(['status' => 'unfinished?']));
-            }
+                });
         } catch (TimeoutExceededError $e) {
             $timeoutThrown = true;
         } catch (PhpUnitException $e) {
@@ -165,13 +165,10 @@ class SessionMethodsTest extends UnitTestCase
             self::fail($e->getMessage());
         }
 
-        self::assertLessThanOrEqual(
-            $sessionTimeout + 1,
-            time() - $pingStarted,
-            'Session wait should be less than timeout, rounded to +1 second up'
-        );
+        self::assertWaitNotExceededTimeout($pingStartedTime);
         self::assertTrue($timeoutThrown, TimeoutExceededError::class.' should be thrown');
     }
+
 
     private function getAuthenticatedClient(): ApiClient
     {
@@ -189,5 +186,14 @@ class SessionMethodsTest extends UnitTestCase
         $session = $session->addQuery(new QueryBuilder('test'));
 
         return $session;
+    }
+
+    private static function assertWaitNotExceededTimeout(int $pingStartedTime): void
+    {
+        self::assertLessThanOrEqual(
+            self::SESSION_TIMEOUT + 1,
+            time() - $pingStartedTime,
+            'Session wait should be less than timeout, rounded to +1 second up'
+        );
     }
 }
